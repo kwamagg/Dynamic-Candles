@@ -1,7 +1,6 @@
 Scriptname DynamicCandles extends ObjectReference
 
 
-Light Property DC_CandleLight Auto
 FormList Property DC_On Auto
 FormList Property DC_Off Auto
 Keyword Property DC_Fire Auto
@@ -14,23 +13,66 @@ Float scale
 
 
 
-Function DC_DisableLightClose()
+Function DC_DisableLightClose(ObjectReference marker)
+
 	Cell kCell = Game.GetPlayer().GetParentCell()
 	Int i = kCell.GetNumRefs(31) - 1
     Float maxDistance = DC_CD_Slider.GetValue()
+    String disabledListKey = "DC_DisabledLights_" + marker.GetFormID()
+    String disabledListCountKey = "DC_DisabledLightsCount_" + marker.GetFormID()
+    Int disabledListCount = 0
 
 	While i >= 0
+
         DC_LightFlagClose = kCell.GetNthRef(i, 31)
         Float distance = self.GetDistance(DC_LightFlagClose)
-        If (distance < maxDistance)
+        i -= 1
+
+        If distance < maxDistance
+            disabledListCount += 1
+            StorageUtil.FormListAdd(marker, disabledListKey, DC_LightFlagClose)
             ConsoleUtil.SetSelectedReference(DC_LightFlagClose)
             ConsoleUtil.ExecuteCommand("Disable")
-            ConsoleUtil.ExecuteCommand("Markfordelete")
         EndIf
-        i -= 1
+        
 	EndWhile
 
+    StorageUtil.SetIntValue(marker, disabledListCountKey, disabledListCount)
     ConsoleUtil.SetSelectedReference(None)
+
+EndFunction
+
+
+Function DC_EnableLightClose(ObjectReference marker)
+    String disabledListKey = "DC_DisabledLights_" + marker.GetFormID()
+    String disabledListCountKey = "DC_DisabledLightsCount_" + marker.GetFormID()
+    Int count = StorageUtil.GetIntValue(marker, disabledListCountKey)
+
+    If count <= 0
+        Return
+    EndIf
+
+    While count > 0
+
+        count -= 1
+        Form disabledForm = StorageUtil.FormListGet(marker, disabledListKey, count)
+
+        If disabledForm != None
+
+            ObjectReference disabledRef = disabledForm as ObjectReference
+            If disabledRef != None
+                ConsoleUtil.SetSelectedReference(disabledRef)
+                ConsoleUtil.ExecuteCommand("Enable")
+            EndIf
+
+        EndIf
+
+    EndWhile
+
+    ConsoleUtil.SetSelectedReference(None)
+    StorageUtil.UnsetIntValue(marker, disabledListCountKey)
+    StorageUtil.FormListClear(marker, disabledListKey)
+
 EndFunction
 
 
@@ -46,11 +88,11 @@ Event OnActivate(ObjectReference akActionRef)
     ; Blow Out
     If DC_On.HasForm(self.GetBaseObject())
         Int index = DC_On.Find(self.GetBaseObject())
-        If DC_SearchAllowed.GetValue() == 1.0
-            DC_DisableLightClose()
-        EndIf
         scale = self.GetScale()
         ObjectReference DC_New = self.PlaceAtMe(DC_Off.GetAt(index), 1, True, True) as ObjectReference
+        If DC_SearchAllowed.GetValue() == 1.0
+            DC_DisableLightClose(DC_New)
+        EndIf
         DC_New.SetScale(scale)
         DC_New.Enable()
         self.Disable()
@@ -61,10 +103,13 @@ Event OnActivate(ObjectReference akActionRef)
     ; Light
     ElseIf DC_Off.HasForm(self.GetBaseObject())
         Int index = DC_Off.Find(self.GetBaseObject())
-        If DC_SearchAllowed.GetValue() == 1.0
-            self.PlaceAtMe(DC_CandleLight, 1, True)
-        EndIf
         scale = self.GetScale()
+        If DC_SearchAllowed.GetValue() == 1.0
+            String disabledListCountKey = "DC_DisabledLightsCount_" + self.GetFormID()
+            If (StorageUtil.GetIntValue(self, disabledListCountKey) > 0)
+                DC_EnableLightClose(self)
+            EndIf
+        EndIf
         ObjectReference DC_New = self.PlaceAtMe(DC_On.GetAt(index), 1, True, True) as ObjectReference
         DC_New.SetScale(scale)
         DC_New.Enable()
@@ -84,11 +129,11 @@ Event OnHit(ObjectReference akAggressor, Form akSource, Projectile akProjectile,
     If akSource.HasKeyword(DC_Frost) && DC_On.HasForm(self.GetBaseObject())
 
         Int index = DC_On.Find(self.GetBaseObject())
-        If DC_SearchAllowed.GetValue() == 1.0
-            DC_DisableLightClose()
-        EndIf
         scale = self.GetScale()
         ObjectReference DC_New = self.PlaceAtMe(DC_Off.GetAt(index), 1, True, True) as ObjectReference
+        If DC_SearchAllowed.GetValue() == 1.0
+            DC_DisableLightClose(DC_New)
+        EndIf
         DC_New.SetScale(scale)
         DC_New.Enable()
         self.Disable()
@@ -100,10 +145,13 @@ Event OnHit(ObjectReference akAggressor, Form akSource, Projectile akProjectile,
     ElseIf akSource.HasKeyword(DC_Fire) && DC_Off.HasForm(self.GetBaseObject())
 
         Int index = DC_Off.Find(self.GetBaseObject())
-        If DC_SearchAllowed.GetValue() == 1.0
-            self.PlaceAtMe(DC_CandleLight, 1, True)
-        EndIf
         scale = self.GetScale()
+        If DC_SearchAllowed.GetValue() == 1.0
+            String disabledListCountKey = "DC_DisabledLightsCount_" + self.GetFormID()
+            If (StorageUtil.GetIntValue(self, disabledListCountKey) > 0)
+                DC_EnableLightClose(self)
+            EndIf
+        EndIf
         ObjectReference DC_New = self.PlaceAtMe(DC_On.GetAt(index), 1, True, True) as ObjectReference
         DC_New.SetScale(scale)
         DC_New.Enable()
@@ -123,11 +171,11 @@ Event OnMagicEffectApply(ObjectReference akCaster, MagicEffect akEffect)
     If akEffect.HasKeyword(DC_Frost) && DC_On.HasForm(self.GetBaseObject())
 
         Int index = DC_On.Find(self.GetBaseObject())
-        If DC_SearchAllowed.GetValue() == 1.0
-            DC_DisableLightClose()
-        EndIf
         scale = self.GetScale()
         ObjectReference DC_New = self.PlaceAtMe(DC_Off.GetAt(index), 1, True, True) as ObjectReference
+        If DC_SearchAllowed.GetValue() == 1.0
+            DC_DisableLightClose(DC_New)
+        EndIf
         DC_New.SetScale(scale)
         DC_New.Enable()
         self.Disable()
@@ -139,10 +187,13 @@ Event OnMagicEffectApply(ObjectReference akCaster, MagicEffect akEffect)
     ElseIf akEffect.HasKeyword(DC_Fire) && DC_Off.HasForm(self.GetBaseObject())
 
         Int index = DC_Off.Find(self.GetBaseObject())
-        If DC_SearchAllowed.GetValue() == 1.0
-            self.PlaceAtMe(DC_CandleLight, 1, True)
-        EndIf
         scale = self.GetScale()
+        If DC_SearchAllowed.GetValue() == 1.0
+            String disabledListCountKey = "DC_DisabledLightsCount_" + self.GetFormID()
+            If (StorageUtil.GetIntValue(self, disabledListCountKey) > 0)
+                DC_EnableLightClose(self)
+            EndIf
+        EndIf
         ObjectReference DC_New = self.PlaceAtMe(DC_On.GetAt(index), 1, True, True) as ObjectReference
         DC_New.SetScale(scale)
         DC_New.Enable()
